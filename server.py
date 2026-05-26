@@ -17,7 +17,7 @@ app.add_middleware(
 
 # Grab your Node.js Main App Domain URL from environment variables
 # e.g., MAIN_APP_URL = "https://your-main-node-app.vercel.app"
-MAIN_APP_URL = os.getenv("MAIN_APP_URL", "http://localhost:3000") 
+MAIN_APP_URL = os.getenv("MAIN_APP_URL", "https://quickscannerver2.vercel.app") 
 
 @app.get("/")
 def read_root():
