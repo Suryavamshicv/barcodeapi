@@ -19,6 +19,10 @@ app.add_middleware(
 # e.g., MAIN_APP_URL = "https://your-main-node-app.vercel.app"
 MAIN_APP_URL = os.getenv("MAIN_APP_URL", "http://localhost:3000") 
 
+@app.get("/")
+def read_root():
+    return {"message": "Barcode API is running on Vercel!"}
+    
 @app.post("/scan")
 async def scan_barcode(file: UploadFile = File(...)):
     try:
