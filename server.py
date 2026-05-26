@@ -1,17 +1,13 @@
+import os
+import httpx  # Add this to handle outgoing HTTP requests
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from flask import Flask
-from flask_cors import CORS  
 import cv2
 import numpy as np
-from pyzbar import pyzbar
-import uvicorn
+import zxingcpp 
 
-###app = FastAPI()
-app = Flask(__name__)
-CORS(app)  
+app = FastAPI()
 
-# Allow your React app to talk to this server
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,28 +15,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Grab your Node.js Main App Domain URL from environment variables
+# e.g., MAIN_APP_URL = "https://your-main-node-app.vercel.app"
+MAIN_APP_URL = os.getenv("MAIN_APP_URL", "http://localhost:3000") 
+
 @app.post("/scan")
 async def scan_barcode(file: UploadFile = File(...)):
-    cap = cv2.VideoCapture(0)
-    
-    # Set high definition resolution
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-    
-    # Convert uploaded image to OpenCV format
-    contents = await file.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    try:
+        contents = await file.read()
+        nparr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    # Decode barcode
-    barcodes = pyzbar.decode(img)
-    
-    if barcodes:
-        # Return the first found barcode
-        data = barcodes[0].data.decode("utf-8")
-        return {"success": True, "barcode": data}
-    
-    return {"success": False, "message": "No barcode detected"}
+        if img is None:
+            return {"success": False, "message": "Invalid image file"}
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+        results = zxingcpp.read_barcodes(img)
+        
+        if results:
+            barcode_value = results[0].text
+            
+            # 🚀 FORWARD THE RESULT TO YOUR NODE.JS EXPRESS LOG ENDPOINT
+            async with httpx.AsyncClient() as client:
+                try:
+                    await client.post(
+                        f"{MAIN_APP_URL}/api/scan/log",
+                        json={"barcode": barcode_value, "source": "python-scanner"}
+                    )
+                except Exception as log_err:
+                    print(f"Failed to broadcast to Node server: {log_err}")
+
+            return {"success": True, "barcode": barcode_value}
+        
+        return {"success": False, "message": "No barcode detected"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
